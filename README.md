@@ -36,7 +36,10 @@ This runs a couple of small sampling scenarios and confirms that triangle meshes
 This repo includes a workflow at `.github/workflows/deploy-pages.yml`.
 
 1. Push the repository to GitHub.
-2. In GitHub, enable **Settings > Pages > Build and deployment > GitHub Actions**.
-3. Push to `main` or run the workflow manually.
+2. In GitHub, open **Settings > Pages**.
+3. Under **Build and deployment > Source**, select **GitHub Actions** and save.
+4. Push to `main` or run the workflow manually.
+
+If **Source** is still unset, the workflow can fail at `Configure Pages` with a `Get Pages site failed` or `HttpError: Not Found` message.
 
 The workflow publishes the static site without any build step.
