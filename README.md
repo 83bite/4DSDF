@@ -15,7 +15,3 @@ The app is designed as a lightweight static site, so it can be hosted directly o
 - Rendering and UI live in `frontend/`
 - SDF sampling and meshing live in `backend/`
 - The meshing pipeline runs through a Web Worker to keep the UI responsive
-
-## Development
-
-Contributor and debugging notes live in [DEVELOPMENT.md](./DEVELOPMENT.md).
