@@ -1,0 +1,9 @@
+{
+  "name": "sdf-4d-playground",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "preview": "python -m http.server 8000",
+    "verify:backend": "node ./scripts/verify-backend.js"
+  }
+}

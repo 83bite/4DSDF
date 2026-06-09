@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>4D SDF Playground</title>
+    <meta
+      name="description"
+      content="Interactive 4D signed distance fields projected into a 3D mesh you can explore in the browser."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <p class="eyebrow">GitHub Pages Ready</p>
+        <h1>4D SDF Playground</h1>
+        <p class="lede">
+          The backend samples a 4D signed distance field, projects it onto 3D along the
+          <code>w</code> axis or slices it at a fixed <code>w</code>, and hands the mesh to the frontend.
+        </p>
+
+        <form id="controls" class="stack" onsubmit="return false;">
+          <section class="panel">
+            <h2 class="panel-title">Scene</h2>
+            <div class="field">
+              <label class="field-head" for="shape">
+                <span>Shape</span>
+              </label>
+              <select id="shape" name="shape"></select>
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <span>Mode</span>
+              </div>
+              <div class="segmented">
+                <div>
+                  <input id="mode-project" name="mode" type="radio" value="project" checked />
+                  <label for="mode-project">Projection</label>
+                </div>
+                <div>
+                  <input id="mode-slice" name="mode" type="radio" value="slice" />
+                  <label for="mode-slice">Slice</label>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2 class="panel-title">Rotation</h2>
+            <div class="field">
+              <label class="field-head" for="xw"><span>XW</span><span data-value="xw">0</span></label>
+              <input id="xw" name="xw" type="range" min="0" max="180" value="38" />
+            </div>
+            <div class="field">
+              <label class="field-head" for="yw"><span>YW</span><span data-value="yw">0</span></label>
+              <input id="yw" name="yw" type="range" min="0" max="180" value="29" />
+            </div>
+            <div class="field">
+              <label class="field-head" for="zw"><span>ZW</span><span data-value="zw">0</span></label>
+              <input id="zw" name="zw" type="range" min="0" max="180" value="18" />
+            </div>
+            <div class="field">
+              <label class="field-head" for="xy"><span>XY</span><span data-value="xy">0</span></label>
+              <input id="xy" name="xy" type="range" min="0" max="180" value="16" />
+            </div>
+            <div class="field">
+              <label class="field-head" for="xz"><span>XZ</span><span data-value="xz">0</span></label>
+              <input id="xz" name="xz" type="range" min="0" max="180" value="12" />
+            </div>
+            <div class="field">
+              <label class="field-head" for="yz"><span>YZ</span><span data-value="yz">0</span></label>
+              <input id="yz" name="yz" type="range" min="0" max="180" value="24" />
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2 class="panel-title">Sampling</h2>
+            <div class="field">
+              <label class="field-head" for="resolution">
+                <span>Grid Resolution</span>
+                <span data-value="resolution">28</span>
+              </label>
+              <input id="resolution" name="resolution" type="range" min="14" max="36" value="28" />
+            </div>
+            <div class="field">
+              <label class="field-head" for="wSamples">
+                <span>W Samples</span>
+                <span data-value="wSamples">30</span>
+              </label>
+              <input id="wSamples" name="wSamples" type="range" min="8" max="48" value="30" />
+            </div>
+            <div class="field">
+              <label class="field-head" for="bound">
+                <span>XYZ Bound</span>
+                <span data-value="bound">1.55</span>
+              </label>
+              <input id="bound" name="bound" type="range" min="0.8" max="2.2" step="0.01" value="1.55" />
+            </div>
+            <div class="field">
+              <label class="field-head" for="wExtent">
+                <span>W Range</span>
+                <span data-value="wExtent">1.55</span>
+              </label>
+              <input id="wExtent" name="wExtent" type="range" min="0.8" max="2.2" step="0.01" value="1.55" />
+            </div>
+            <div class="field">
+              <label class="field-head" for="sliceW">
+                <span>Slice W</span>
+                <span data-value="sliceW">0.00</span>
+              </label>
+              <input id="sliceW" name="sliceW" type="range" min="-1.4" max="1.4" step="0.01" value="0" />
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2 class="panel-title">View</h2>
+            <label class="toggle" for="spin">
+              <input id="spin" type="checkbox" checked />
+              <span>Spin Camera</span>
+            </label>
+            <div class="button-row" style="margin-top: 12px;">
+              <button id="rebuild" type="button">Rebuild Mesh</button>
+              <button id="preset" type="button">Reset Preset</button>
+              <button id="reset-view" type="button">Reset View</button>
+            </div>
+            <p class="hint">
+              Drag to orbit, scroll to zoom, and switch between projection and slice to inspect how the
+              same 4D field shows up in 3D.
+            </p>
+          </section>
+        </form>
+      </aside>
+
+      <main class="viewport-wrap">
+        <div class="topbar">
+          <div style="min-width: 0; flex: 1;">
+            <div id="status" class="status">Preparing worker...</div>
+            <div class="progress"><span id="progress-fill"></span></div>
+          </div>
+          <div id="stats" class="stats">Waiting for first mesh</div>
+        </div>
+        <div class="viewport-panel">
+          <canvas id="viewport"></canvas>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./frontend/app.js"></script>
+  </body>
+</html>
