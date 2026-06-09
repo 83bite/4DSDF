@@ -16,19 +16,20 @@
         <p class="eyebrow">GitHub Pages Ready</p>
         <h1>4D SDF Playground</h1>
         <p class="lede">
-          The backend samples a 4D signed distance field, projects it onto 3D along the
-          <code>w</code> axis or slices it at a fixed <code>w</code>, and hands the mesh to the frontend.
+          Edit the 4D function directly in the GUI, load examples, then project along
+          <code>w</code> or slice at a fixed <code>w</code> to inspect the resulting 3D mesh.
         </p>
 
         <form id="controls" class="stack" onsubmit="return false;">
           <section class="panel">
-            <h2 class="panel-title">Scene</h2>
+            <h2 class="panel-title">Function</h2>
             <div class="field">
-              <label class="field-head" for="shape">
-                <span>Shape</span>
+              <label class="field-head" for="example">
+                <span>Example</span>
               </label>
-              <select id="shape" name="shape"></select>
+              <select id="example" name="example"></select>
             </div>
+            <p id="example-description" class="support-copy"></p>
 
             <div class="field">
               <div class="field-head">
@@ -45,6 +46,23 @@
                 </div>
               </div>
             </div>
+
+            <div class="field">
+              <label class="field-head" for="function-source">
+                <span>Function Body</span>
+                <span id="editor-status" class="editor-status">Applied</span>
+              </label>
+              <textarea id="function-source" spellcheck="false"></textarea>
+            </div>
+
+            <div class="button-row button-row-3">
+              <button id="load-example" type="button">Load Example</button>
+              <button id="apply-code" type="button">Apply Code</button>
+              <button id="revert-code" type="button">Revert Editor</button>
+            </div>
+
+            <p id="helper-summary" class="hint tight"></p>
+            <div id="error-box" class="error-box" hidden></div>
           </section>
 
           <section class="panel">
@@ -120,14 +138,14 @@
               <input id="spin" type="checkbox" checked />
               <span>Spin Camera</span>
             </label>
-            <div class="button-row" style="margin-top: 12px;">
+            <div class="button-row button-row-3" style="margin-top: 12px;">
               <button id="rebuild" type="button">Rebuild Mesh</button>
-              <button id="preset" type="button">Reset Preset</button>
+              <button id="reset-scene" type="button">Reset Scene</button>
               <button id="reset-view" type="button">Reset View</button>
             </div>
             <p class="hint">
-              Drag to orbit, scroll to zoom, and switch between projection and slice to inspect how the
-              same 4D field shows up in 3D.
+              Drag to orbit, scroll to zoom, and edit the function body with
+              <code>return ...</code> to sculpt new 4D shapes.
             </p>
           </section>
         </form>

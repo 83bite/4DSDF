@@ -1,73 +1,22 @@
+import { DEFAULT_EXAMPLE_ID, FUNCTION_EXAMPLES, getExampleDefinition, HELPER_SUMMARY } from "../backend/sdf4d.js";
 import { CanvasMeshRenderer } from "./renderer.js";
 
-const SHAPES = [
-  { value: "tesseract", label: "Tesseract" },
-  { value: "duocylinder", label: "Duocylinder" },
-  { value: "smoothBlend", label: "Smooth Blend" },
-  { value: "hypersphere", label: "Hypersphere" },
-];
-
-const PRESETS = {
-  tesseract: {
-    shape: "tesseract",
-    mode: "project",
-    resolution: 28,
-    wSamples: 30,
-    bound: 1.55,
-    wExtent: 1.55,
-    sliceW: 0,
-    rotation: { xy: 16, xz: 12, xw: 38, yz: 24, yw: 29, zw: 18 },
-  },
-  duocylinder: {
-    shape: "duocylinder",
-    mode: "project",
-    resolution: 28,
-    wSamples: 32,
-    bound: 1.25,
-    wExtent: 1.25,
-    sliceW: 0,
-    rotation: { xy: 0, xz: 0, xw: 62, yz: 18, yw: 12, zw: 48 },
-  },
-  smoothBlend: {
-    shape: "smoothBlend",
-    mode: "slice",
-    resolution: 28,
-    wSamples: 28,
-    bound: 1.4,
-    wExtent: 1.4,
-    sliceW: 0.18,
-    rotation: { xy: 8, xz: 12, xw: 42, yz: 24, yw: 18, zw: 10 },
-  },
-  hypersphere: {
-    shape: "hypersphere",
-    mode: "slice",
-    resolution: 26,
-    wSamples: 24,
-    bound: 1.25,
-    wExtent: 1.25,
-    sliceW: 0.35,
-    rotation: { xy: 0, xz: 0, xw: 24, yz: 0, yw: 36, zw: 14 },
-  },
-};
-
+const STORAGE_KEY = "sdf4d-playground-state-v2";
+const ROTATION_PLANES = ["xy", "xz", "xw", "yz", "yw", "zw"];
 const controls = [
   "resolution",
   "wSamples",
   "bound",
   "wExtent",
   "sliceW",
-  "xy",
-  "xz",
-  "xw",
-  "yz",
-  "yw",
-  "zw",
+  ...ROTATION_PLANES,
 ];
 
 const state = {
   requestId: 0,
   latestAccepted: 0,
   rebuildTimer: null,
+  lastAppliedSource: "",
 };
 
 const worker = new Worker(new URL("../backend/worker.js", import.meta.url), {
@@ -76,16 +25,112 @@ const worker = new Worker(new URL("../backend/worker.js", import.meta.url), {
 
 const canvas = document.querySelector("#viewport");
 const form = document.querySelector("#controls");
-const shapeSelect = document.querySelector("#shape");
+const exampleSelect = document.querySelector("#example");
+const exampleDescription = document.querySelector("#example-description");
+const sourceEditor = document.querySelector("#function-source");
+const helperSummary = document.querySelector("#helper-summary");
+const editorStatus = document.querySelector("#editor-status");
+const errorBox = document.querySelector("#error-box");
 const modeInputs = [...document.querySelectorAll('input[name="mode"]')];
 const status = document.querySelector("#status");
 const progressBar = document.querySelector("#progress-fill");
 const stats = document.querySelector("#stats");
 const rebuildButton = document.querySelector("#rebuild");
-const presetButton = document.querySelector("#preset");
+const loadExampleButton = document.querySelector("#load-example");
+const applyCodeButton = document.querySelector("#apply-code");
+const revertCodeButton = document.querySelector("#revert-code");
+const resetSceneButton = document.querySelector("#reset-scene");
 const resetViewButton = document.querySelector("#reset-view");
 const spinToggle = document.querySelector("#spin");
 const renderer = new CanvasMeshRenderer(canvas);
+
+function cloneScene(scene) {
+  return {
+    ...scene,
+    rotation: { ...scene.rotation },
+  };
+}
+
+function sanitizeScene(savedScene, fallbackScene) {
+  const mode = savedScene?.mode === "slice" ? "slice" : savedScene?.mode === "project" ? "project" : fallbackScene.mode;
+  const numeric = (name) => {
+    const value = Number(savedScene?.[name]);
+    return Number.isFinite(value) ? value : fallbackScene[name];
+  };
+
+  return {
+    mode,
+    resolution: numeric("resolution"),
+    wSamples: numeric("wSamples"),
+    bound: numeric("bound"),
+    wExtent: numeric("wExtent"),
+    sliceW: numeric("sliceW"),
+    rotation: Object.fromEntries(
+      ROTATION_PLANES.map((plane) => {
+        const value = Number(savedScene?.rotation?.[plane]);
+        return [plane, Number.isFinite(value) ? value : fallbackScene.rotation[plane]];
+      }),
+    ),
+  };
+}
+
+function getDefaultState(exampleId = DEFAULT_EXAMPLE_ID) {
+  const example = getExampleDefinition(exampleId);
+
+  return {
+    exampleId: example.id,
+    scene: cloneScene(example.scene),
+    sourceDraft: example.source,
+    appliedSource: example.source,
+    spin: true,
+  };
+}
+
+function restoreState() {
+  const fallback = getDefaultState();
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+
+    if (!raw) {
+      return fallback;
+    }
+
+    const saved = JSON.parse(raw);
+    const base = getDefaultState(saved?.exampleId);
+
+    return {
+      exampleId: base.exampleId,
+      scene: sanitizeScene(saved?.scene, base.scene),
+      sourceDraft: typeof saved?.sourceDraft === "string" ? saved.sourceDraft : base.sourceDraft,
+      appliedSource:
+        typeof saved?.appliedSource === "string" && saved.appliedSource.trim()
+          ? saved.appliedSource
+          : base.appliedSource,
+      spin: typeof saved?.spin === "boolean" ? saved.spin : base.spin,
+    };
+  } catch (error) {
+    console.warn("Failed to restore app state", error);
+    return fallback;
+  }
+}
+
+function persistState() {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        exampleId: exampleSelect.value,
+        scene: collectSceneDraft(),
+        sourceDraft: sourceEditor.value,
+        appliedSource: state.lastAppliedSource,
+        spin: spinToggle.checked,
+      }),
+    );
+  } catch (error) {
+    console.warn("Failed to persist app state", error);
+  }
+}
 
 function updateValueLabels() {
   for (const controlName of controls) {
@@ -100,9 +145,28 @@ function updateValueLabels() {
   }
 }
 
-function applyScene(scene) {
-  shapeSelect.value = scene.shape;
+function updateExampleDescription() {
+  const example = getExampleDefinition(exampleSelect.value);
+  exampleDescription.textContent = example.description;
+}
 
+function updateEditorStatus() {
+  const dirty = sourceEditor.value !== state.lastAppliedSource;
+  editorStatus.textContent = dirty ? "Draft not applied" : "Applied";
+  editorStatus.dataset.dirty = dirty ? "true" : "false";
+}
+
+function showError(message) {
+  errorBox.hidden = false;
+  errorBox.textContent = message;
+}
+
+function clearError() {
+  errorBox.hidden = true;
+  errorBox.textContent = "";
+}
+
+function applySceneControls(scene) {
   for (const input of modeInputs) {
     input.checked = input.value === scene.mode;
   }
@@ -113,18 +177,17 @@ function applyScene(scene) {
   form.elements.namedItem("wExtent").value = scene.wExtent;
   form.elements.namedItem("sliceW").value = scene.sliceW;
 
-  for (const plane of ["xy", "xz", "xw", "yz", "yw", "zw"]) {
+  for (const plane of ROTATION_PLANES) {
     form.elements.namedItem(plane).value = scene.rotation[plane];
   }
 
   updateValueLabels();
 }
 
-function collectScene() {
+function collectSceneDraft() {
   const mode = modeInputs.find((input) => input.checked)?.value ?? "project";
 
   return {
-    shape: shapeSelect.value,
     mode,
     resolution: Number(form.elements.namedItem("resolution").value),
     wSamples: Number(form.elements.namedItem("wSamples").value),
@@ -132,7 +195,7 @@ function collectScene() {
     wExtent: Number(form.elements.namedItem("wExtent").value),
     sliceW: Number(form.elements.namedItem("sliceW").value),
     rotation: Object.fromEntries(
-      ["xy", "xz", "xw", "yz", "yw", "zw"].map((plane) => [
+      ROTATION_PLANES.map((plane) => [
         plane,
         Number(form.elements.namedItem(plane).value),
       ]),
@@ -140,8 +203,18 @@ function collectScene() {
   };
 }
 
+function collectScene() {
+  return {
+    shape: exampleSelect.value,
+    functionSource: state.lastAppliedSource,
+    ...collectSceneDraft(),
+  };
+}
+
 function setBusy(isBusy, label) {
   rebuildButton.disabled = isBusy;
+  loadExampleButton.disabled = isBusy;
+  applyCodeButton.disabled = isBusy;
   status.textContent = label;
 }
 
@@ -152,7 +225,7 @@ function scheduleRebuild(delay = 180) {
 
 function requestMesh() {
   clearTimeout(state.rebuildTimer);
-  const scene = collectScene();
+  clearError();
   state.requestId += 1;
   setBusy(true, "Sampling 4D field...");
   progressBar.style.width = "2%";
@@ -160,8 +233,20 @@ function requestMesh() {
   worker.postMessage({
     type: "generate",
     requestId: state.requestId,
-    payload: scene,
+    payload: collectScene(),
   });
+}
+
+function loadExample(exampleId) {
+  const example = getExampleDefinition(exampleId);
+  exampleSelect.value = example.id;
+  sourceEditor.value = example.source;
+  state.lastAppliedSource = example.source;
+  applySceneControls(example.scene);
+  updateExampleDescription();
+  updateEditorStatus();
+  persistState();
+  requestMesh();
 }
 
 worker.onmessage = (event) => {
@@ -182,6 +267,18 @@ worker.onmessage = (event) => {
     return;
   }
 
+  if (type === "error") {
+    if (requestId !== state.requestId) {
+      return;
+    }
+
+    setBusy(false, "Function error");
+    progressBar.style.width = "0%";
+    showError(payload.message);
+    stats.textContent = "Mesh unchanged | Fix the function and apply again";
+    return;
+  }
+
   if (type === "mesh") {
     if (requestId !== state.requestId) {
       return;
@@ -191,6 +288,7 @@ worker.onmessage = (event) => {
     renderer.setMesh({
       positions: payload.positions,
     });
+    clearError();
     progressBar.style.width = "100%";
     setBusy(false, "Ready");
     stats.textContent = [
@@ -201,39 +299,78 @@ worker.onmessage = (event) => {
   }
 };
 
-shapeSelect.innerHTML = SHAPES.map(
-  (shape) => `<option value="${shape.value}">${shape.label}</option>`,
-).join("");
+exampleSelect.innerHTML = Object.entries(FUNCTION_EXAMPLES)
+  .map(([value, example]) => `<option value="${value}">${example.label}</option>`)
+  .join("");
 
-applyScene(PRESETS.tesseract);
+helperSummary.textContent = HELPER_SUMMARY;
+
+const restored = restoreState();
+exampleSelect.value = restored.exampleId;
+applySceneControls(restored.scene);
+sourceEditor.value = restored.sourceDraft;
+state.lastAppliedSource = restored.appliedSource;
+spinToggle.checked = restored.spin;
+renderer.setSpin(spinToggle.checked);
+updateExampleDescription();
+updateEditorStatus();
 requestMesh();
 
-shapeSelect.addEventListener("change", () => {
-  applyScene(PRESETS[shapeSelect.value]);
+exampleSelect.addEventListener("change", () => {
+  updateExampleDescription();
+  persistState();
+});
+
+loadExampleButton.addEventListener("click", () => {
+  loadExample(exampleSelect.value);
+});
+
+applyCodeButton.addEventListener("click", () => {
+  state.lastAppliedSource = sourceEditor.value.replace(/\r\n/g, "\n");
+  updateEditorStatus();
+  persistState();
+  requestMesh();
+});
+
+revertCodeButton.addEventListener("click", () => {
+  sourceEditor.value = state.lastAppliedSource;
+  updateEditorStatus();
+  persistState();
+});
+
+resetSceneButton.addEventListener("click", () => {
+  const example = getExampleDefinition(exampleSelect.value);
+  applySceneControls(example.scene);
+  persistState();
   requestMesh();
 });
 
 for (const name of controls) {
   form.elements.namedItem(name).addEventListener("input", () => {
     updateValueLabels();
+    persistState();
     scheduleRebuild();
   });
 }
 
 for (const input of modeInputs) {
-  input.addEventListener("change", () => requestMesh());
+  input.addEventListener("change", () => {
+    persistState();
+    requestMesh();
+  });
 }
+
+sourceEditor.addEventListener("input", () => {
+  updateEditorStatus();
+  persistState();
+});
 
 spinToggle.addEventListener("change", () => {
   renderer.setSpin(spinToggle.checked);
+  persistState();
 });
 
 rebuildButton.addEventListener("click", () => requestMesh());
-
-presetButton.addEventListener("click", () => {
-  applyScene(PRESETS[shapeSelect.value]);
-  requestMesh();
-});
 
 resetViewButton.addEventListener("click", () => {
   renderer.resetView();

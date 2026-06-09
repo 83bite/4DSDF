@@ -1,36 +1,51 @@
 import { lerp, rotate4 } from "./math4d.js";
-import { evaluateShape, SHAPE_PRESETS } from "./sdf4d.js";
+import { compileSdfSource, getExampleDefinition } from "./sdf4d.js";
 
 function getPointIndex(x, y, z, resolution) {
   return x + y * resolution + z * resolution * resolution;
 }
 
+function formatPoint(point) {
+  return point.map((value) => value.toFixed(3)).join(", ");
+}
+
 export function getShapePreset(shape) {
-  return SHAPE_PRESETS[shape] ?? SHAPE_PRESETS.tesseract;
+  return getExampleDefinition(shape).scene;
 }
 
 export function normalizeSceneConfig(scene) {
-  const preset = getShapePreset(scene.shape);
+  const example = getExampleDefinition(scene.shape);
 
   return {
-    shape: scene.shape ?? "tesseract",
-    mode: scene.mode ?? "project",
-    resolution: Math.max(14, Math.min(40, scene.resolution ?? 26)),
-    wSamples: Math.max(8, Math.min(64, scene.wSamples ?? 28)),
-    sliceW: scene.sliceW ?? 0,
-    bound: scene.bound ?? preset.bound,
-    wExtent: scene.wExtent ?? preset.wExtent,
+    shape: example.id,
+    mode: scene.mode ?? example.scene.mode ?? "project",
+    resolution: Math.max(14, Math.min(40, scene.resolution ?? example.scene.resolution ?? 26)),
+    wSamples: Math.max(8, Math.min(64, scene.wSamples ?? example.scene.wSamples ?? 28)),
+    sliceW: scene.sliceW ?? example.scene.sliceW ?? 0,
+    bound: scene.bound ?? example.scene.bound,
+    wExtent: scene.wExtent ?? example.scene.wExtent,
+    functionSource: scene.functionSource ?? example.source,
     rotation: {
-      ...preset.rotation,
+      ...example.scene.rotation,
       ...(scene.rotation ?? {}),
     },
   };
 }
 
-function evaluateProjectedField(point3, scene) {
+function evaluatePoint(evaluator, point4) {
+  const value = evaluator(point4);
+
+  if (!Number.isFinite(value)) {
+    throw new Error(`Function returned a non-finite value near (${formatPoint(point4)}).`);
+  }
+
+  return value;
+}
+
+function evaluateProjectedField(point3, scene, evaluator) {
   if (scene.mode === "slice") {
-    return evaluateShape(
-      scene.shape,
+    return evaluatePoint(
+      evaluator,
       rotate4([point3[0], point3[1], point3[2], scene.sliceW], scene.rotation),
     );
   }
@@ -41,8 +56,8 @@ function evaluateProjectedField(point3, scene) {
   for (let i = 0; i < sampleCount; i += 1) {
     const t = sampleCount === 1 ? 0.5 : i / (sampleCount - 1);
     const w = lerp(-scene.wExtent, scene.wExtent, t);
-    const value = evaluateShape(
-      scene.shape,
+    const value = evaluatePoint(
+      evaluator,
       rotate4([point3[0], point3[1], point3[2], w], scene.rotation),
     );
 
@@ -56,6 +71,7 @@ function evaluateProjectedField(point3, scene) {
 
 export function sampleField(sceneInput, onProgress) {
   const scene = normalizeSceneConfig(sceneInput);
+  const evaluator = compileSdfSource(scene.functionSource);
   const resolution = scene.resolution;
   const origin = [-scene.bound, -scene.bound, -scene.bound];
   const step = (scene.bound * 2) / (resolution - 1);
@@ -72,6 +88,7 @@ export function sampleField(sceneInput, onProgress) {
         values[getPointIndex(x, y, z, resolution)] = evaluateProjectedField(
           [px, py, pz],
           scene,
+          evaluator,
         );
       }
     }
