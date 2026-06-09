@@ -1,7 +1,8 @@
 import { DEFAULT_EXAMPLE_ID, FUNCTION_EXAMPLES, getExampleDefinition, HELPER_SUMMARY } from "../backend/sdf4d.js";
 import { CanvasMeshRenderer } from "./renderer.js";
 
-const STORAGE_KEY = "sdf4d-playground-state-v2";
+const STORAGE_KEY = "sdf4d-playground-state-v3";
+const LEGACY_STORAGE_KEYS = ["sdf4d-playground-state-v2"];
 const ROTATION_PLANES = ["xy", "xz", "xw", "yz", "yw", "zw"];
 const controls = [
   "resolution",
@@ -82,7 +83,7 @@ function getDefaultState(exampleId = DEFAULT_EXAMPLE_ID) {
     scene: cloneScene(example.scene),
     sourceDraft: example.source,
     appliedSource: example.source,
-    spin: true,
+    spin: false,
   };
 }
 
@@ -90,7 +91,19 @@ function restoreState() {
   const fallback = getDefaultState();
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    let isLegacyState = false;
+
+    if (!raw) {
+      for (const legacyKey of LEGACY_STORAGE_KEYS) {
+        raw = localStorage.getItem(legacyKey);
+
+        if (raw) {
+          isLegacyState = true;
+          break;
+        }
+      }
+    }
 
     if (!raw) {
       return fallback;
@@ -107,7 +120,12 @@ function restoreState() {
         typeof saved?.appliedSource === "string" && saved.appliedSource.trim()
           ? saved.appliedSource
           : base.appliedSource,
-      spin: typeof saved?.spin === "boolean" ? saved.spin : base.spin,
+      spin:
+        isLegacyState
+          ? false
+          : typeof saved?.spin === "boolean"
+            ? saved.spin
+            : base.spin,
     };
   } catch (error) {
     console.warn("Failed to restore app state", error);

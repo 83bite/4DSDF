@@ -5,6 +5,11 @@
   color: #e2e8f0;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -12,6 +17,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  overflow: hidden;
   background:
     radial-gradient(circle at top, rgba(30, 41, 59, 0.65), rgba(2, 6, 23, 0) 42%),
     #020617;
@@ -19,7 +25,7 @@ body {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
+  grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
 }
@@ -277,8 +283,8 @@ input[type="range"] {
 }
 
 .viewport-frame {
-  width: min(100%, 980px);
-  height: clamp(520px, 72vh, 760px);
+  width: min(100%, 940px);
+  height: clamp(500px, 68vh, 720px);
   flex: 0 0 auto;
 }
 
@@ -303,10 +309,14 @@ canvas {
   margin-bottom: 0;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 860px) {
   .app-shell {
     grid-template-columns: 1fr;
     height: auto;
+    overflow: visible;
+  }
+
+  body {
     overflow: visible;
   }
 

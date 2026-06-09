@@ -29,7 +29,7 @@ export class CanvasMeshRenderer {
     this.yaw = 0.9;
     this.pitch = -0.55;
     this.distance = 4.2;
-    this.spin = true;
+    this.spin = false;
     this.lastTime = 0;
     this.dragging = false;
     this.render = this.render.bind(this);
